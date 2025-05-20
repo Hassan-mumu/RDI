@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Température en direct</title>
+</head>
+<body>
+  <h1>Température actuelle :</h1>
+  <div id="temp">Chargement...</div>
+
+  <script>
+    async function getTemp() {
+      const res = await fetch('https://robot-7779f-default-rtdb.europe-west1.firebasedatabase.app/temperature.json');
+      const data = await res.json();
+      document.getElementById("temp").innerText = data.value + " °C";
+    }
+
+    setInterval(getTemp, 5000); // Met à jour toutes les 5 secondes
+    getTemp();
+  </script>
+</body>
+</html>
+
