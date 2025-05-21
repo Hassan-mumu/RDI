@@ -1,8 +1,11 @@
-from machine import Pin, Timer
+from machine
+import Pin, Timer
 import time
 import dht
 import network
 import urequests
+import ntptime
+
 
 # Définition des broches BCD (connectées au CD4511BE)
 BCD_A = Pin(0, Pin.OUT)  # IA
@@ -11,8 +14,8 @@ BCD_C = Pin(2, Pin.OUT)  # IC
 BCD_D = Pin(1, Pin.OUT)  # ID
 
 # Transistors pour sélectionner les digits
-digit_tens = Pin(4, Pin.OUT)   # Q1
-digit_units = Pin(5, Pin.OUT)  # Q2
+digit_tens = Pin(14, Pin.OUT)   # Q1
+digit_units = Pin(15, Pin.OUT)  # Q2
 
 # Capteur DHT11 connecté à GP2 (sur ton schéma c’est "TEMP")
 sensor = dht.DHT11(Pin(16))
@@ -20,14 +23,18 @@ sensor = dht.DHT11(Pin(16))
 # Initialisation du timer
 timer = Timer()
 
+# Initialisation des ADC (GP26 pour capteur 1 et GP27 pour capteur 2)
+adc1 = machine.ADC(26)  # Capteur 1 sur GP26
+adc2 = machine.ADC(27)  # Capteur 2 sur GP27
+
 # Variables globales
 tens = 0
 units = 0
 counter = 0
 
 # Wifi config
-SSID = "le nom du wifi"
-PASSWORD = "mot_de_passe"
+#SSID = "le nom du wifi"
+#PASSWORD = "mot_de_passe"
 
 # Firebase Realtime Database URL (à adapter avec la bdd)
 FIREBASE_URL = "https://robot-7779f-default-rtdb.europe-west1.firebasedatabase.app/temperature.json"
@@ -94,16 +101,47 @@ def send_to_firebase(temp):
 init_timer()
 
 # Connexion WiFi
-connect_wifi()
+#connect_wifi()
+# Fonction pour lire la tension du capteur
+def read_voltage(adc):
+    return adc.read_u16() * 3.3 / 65535  # Convertir l'ADC en volts
 
+# Nouvelle fonction améliorée pour convertir la tension en distance (cm)
+def voltage_to_distance(voltage):
+    if voltage < 0.45:  # En dessous de 0.45V, hors plage (>80 cm)
+        return ">80 cm"
+    
+    # Nouvelle formule calibrée
+    distance = 26.86 * (voltage ** -1.15)
+    return round(distance, 1)  # Arrondi à 1 chiffre après la virgule
+
+# Boucle principale
 while True:
-    try:
-        sensor.measure()
-        temperature = sensor.temperature()
-        print("Température :", temperature)
-        send_to_firebase(temperature)
-    except Exception as e:
-        print("Erreur capteur:", e)
+    try :
+        
+        t = time.localtime(time.time())
+        sensor.measure()  # Lecture des données
+        temp = sensor.temperature()  # Température en °C
+        humidity = sensor.humidity()  # Humidité en %
+       
+        voltage1 = read_voltage(adc1)  # Lire tension capteur 1
+        voltage2 = read_voltage(adc2)  # Lire tension capteur 2
+        
+        distance1 = voltage_to_distance(voltage1)  # Conversion distance capteur 1
+        distance2 = voltage_to_distance(voltage2)  # Conversion distance capteur 2
+        display_number(temp)
+        #display_number(humidity)
+        
+        print("-" * 60)  # Séparateur visuel
+        print("{:02d}:{:02d}".format(t[3], t[4]))
+        print(f"Capteur 1 - Tension: {voltage1:.2f}V - Distance: {distance1} cm")
+        print(f"Capteur 2 - Tension: {voltage2:.2f}V - Distance: {distance2} cm -" )
+        print("Température: {}°C   Humidité: {:.0f}% ".format(temp, humidity))
+        print("-" * 60)  # Séparateur visuel
 
-    time.sleep(10)  # envoi toutes les 10 secondes
+        time.sleep(1)  # Pause 500 ms
+    
+    except OSError as e:
+        print("Erreur de lecture du capteur DHT11, réessai...")
+
 
